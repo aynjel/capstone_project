@@ -1,0 +1,184 @@
+<?php 
+session_start();
+$app_title = "Enrollment Details";
+require_once('./includes/header.php'); 
+require_once('../config/config.php');
+
+// If the user is not logged in, redirect to the login page
+if (isset($_SESSION['user_id']) && $_SESSION['user_role'] == 'Admin') {
+   $user_id = $_SESSION['user_id'];
+   $user_role = $_SESSION['user_role'];
+   $user_status = $_SESSION['user_status'];
+   $email = $_SESSION['email'];
+   $nickname = $_SESSION['nickname'];
+}else{
+   $_SESSION['error'] = 'You are not logged in as an Admin';
+   header('refresh:2;url=../auth/signin.php');
+   exit();
+}
+?>
+
+<body class="nav-fixed">
+
+   <?php require_once('./includes/nav.php'); ?>
+
+   <!--Side Nav-->
+   <div id="layoutSidenav">
+      <?php $curr_page = basename(__FILE__); ?>
+      <?php require_once './includes/sidebar.php'; ?>
+
+      <div id="layoutSidenav_content">
+         <div class="container-fluid">
+
+            <?php if(isset($_SESSION['success'])) : ?>
+            <div class="alert alert-success" role="alert">
+               <strong>Success!</strong> <?php echo $_SESSION['success']; unset($_SESSION['success']); ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if(isset($_SESSION['error'])) : ?>
+            <div class="alert alert-danger" role="alert">
+               <strong>Error!</strong> <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+            </div>
+            <?php endif; ?>
+
+         </div>
+         <main>
+            <div class="page-header pb-10 page-header-dark bg-gradient-primary-to-secondary">
+               <div class="container-fluid">
+                  <div class="page-header-content d-flex align-items-center justify-content-between text-white">
+                     <h1 class="page-header-title">
+                        <div class="page-header-icon">
+                           <i class="fas fa-user-tie"></i>
+                        </div>
+                        <span>Enrolled Students</span>
+                     </h1>
+                     <a href="enrollment_create.php" title="Enroll a Student" class="btn btn-white">
+                        <div class="page-header-icon">
+                           <i class="fas fa-plus"></i>
+                           Enroll
+                        </div>
+                     </a>
+                  </div>
+               </div>
+            </div>
+
+            <!--Table-->
+            <div class="container-fluid mt-n10">
+
+               <div class="card mb-4">
+                  <div class="card-header">Student List</div>
+                  <div class="card-body">
+                     <div class="datatable table-responsive">
+                        <?php
+                           // get all students who are enrolled
+                           $sql = "SELECT * FROM tbl_enrollment";
+                           $stmt = $conn->prepare($sql);
+                           $stmt->execute();
+                           $enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                           $count = $stmt->rowCount();
+                        ?>
+                        <?php if ($count > 0) : ?>
+                        <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                           <thead>
+                              <tr>
+                                 <th>Enrollment ID</th>
+                                 <th>School Year</th>
+                                 <th>Student Name</th>
+                                 <th>Coordinator Name</th>
+                                 <th>Organization Name</th>
+                                 <th>Status</th>
+                                 <th>Action</th>
+                              </tr>
+                           </thead>
+                           <tbody>
+                              <?php foreach ($enrollments as $enrollment) : ?>
+                              <?php
+                                 // get student full name
+                                 $student_id = $enrollment['student_id'];
+                                 $sql = "SELECT * FROM tbl_user WHERE user_id = :student_id";
+                                 $stmt = $conn->prepare($sql);
+                                 $stmt->execute(['student_id' => $student_id]);
+                                 $student = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                 $sql = "SELECT * FROM tbl_student WHERE student_id = :student_id";
+                                 $stmt = $conn->prepare($sql);
+                                 $stmt->execute(['student_id' => $student_id]);
+                                 $student = $stmt->fetch(PDO::FETCH_ASSOC);
+                                 
+                                 // get coordinator name
+                                 $coordinator_id = $enrollment['coordinator_id'];
+                                 $sql = "SELECT * FROM tbl_coordinator WHERE coordinator_id = :coordinator_id";
+                                 $stmt = $conn->prepare($sql);
+                                 $stmt->execute(['coordinator_id' => $coordinator_id]);
+                                 $coordinator = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                                 // get organization name of the coordinator
+                                 $organization_id = $coordinator['organization_id'];
+                                 $sql = "SELECT * FROM tbl_organization WHERE organization_id = :organization_id";
+                                 $stmt = $conn->prepare($sql);
+                                 $stmt->execute(['organization_id' => $coordinator['organization_id']]);
+                                 $organization = $stmt->fetch(PDO::FETCH_ASSOC);
+                              ?>
+                              <tr>
+                                 <td><?php echo $enrollment['enrollment_id']; ?></td>
+                                 <td><?php echo $enrollment['school_year']; ?></td>
+                                 <td><?php echo $student['first_name'] . ' ' . $student['last_name']; ?></td>
+                                 <td><?php echo $coordinator['first_name'] . ' ' . $coordinator['last_name']; ?></td>
+                                 <td><?php echo $organization['organization_name']; ?></td>
+                                 <td>
+                                    <?php
+                                    if ($enrollment['status'] == 'Enrolled') {
+                                       echo '<span class="badge badge-success">Enrolled</span>';
+                                    } elseif ($enrollment['status'] == 'Not Enrolled') {
+                                       echo '<span class="badge badge-danger">Not Enrolled</span>';
+                                    } elseif ($enrollment['status'] == 'Dropped') {
+                                       echo '<span class="badge badge-danger">Dropped</span>';
+                                    }  else {
+                                       echo '<span class="badge badge-success">Graduated</span>';
+                                    }
+                                    ?>
+                                 </td>
+                                 <td>
+                                    <!-- view -->
+                                    <a href="enrollment_view.php?view_id=<?php echo $enrollment['enrollment_id']; ?>"
+                                       title="View" class="btn btn-info btn-icon">
+                                       <i class="fas fa-eye"></i>
+                                    </a>
+                                 </td>
+                              </tr>
+                              <?php endforeach; ?>
+                           </tbody>
+                        </table>
+                        <?php else : ?>
+                        <div class="h4 alert alert-light text-center" role="alert">
+                           No enrolled students yet.
+                        </div>
+                        <?php endif; ?>
+                     </div>
+                  </div>
+               </div>
+            </div>
+            <!--End Table-->
+
+         </main>
+         <!--start footer-->
+         <footer class="footer mt-auto footer-light">
+            <div class="container-fluid">
+               <div class="row">
+                  <div class="col-md-6 small">
+                     Copyright &#xA9; Group 9
+                  </div>
+                  <div class="col-md-6 text-md-right small">
+                     <a href="#!">Privacy Policy</a>
+                     &#xB7;
+                     <a href="#">Terms &amp; Conditions</a>
+                  </div>
+               </div>
+            </div>
+         </footer>
+         <!--end footer-->
+      </div>
+   </div>
+
+   <?php require_once('./includes/footer.php'); ?>
